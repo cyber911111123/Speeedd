@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="az" class="h-full bg-black text-white select-none overflow-hidden">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tesla OS V12 E-Scooter Dashboard</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        tesla: {
+                            red: '#e82127',
+                            dark: '#08090a',
+                            panel: 'rgba(17, 19, 24, 0.82)',
+                            card: 'rgba(24, 27, 34, 0.75)',
+                            border: '#262a36',
+                            muted: '#8e8e93',
+                            accent: '#3e6ae1',
+                            green: '#10b981'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Touch & Real-World Driving Optimizations */
+        * { touch-action: manipulation; }
+        .glass-panel {
+            background: rgba(17, 19, 24, 0.78);
+            backdrop-filter: blur(28px);
+            -webkit-backdrop-filter: blur(28px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .glass-card {
+            background: rgba(24, 27, 34, 0.65);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]:focus { outline: none; }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 8px;
+            cursor: pointer;
+            background: #262a36;
+            border-radius: 4px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            height: 22px;
+            width: 22px;
+            border-radius: 50%;
+            background: #ffffff;
+            cursor: pointer;
+            -webkit-appearance: none;
+            margin-top: -7px;
+            box-shadow: 0 0 12px rgba(0, 0, 0, 0.8);
+            transition: transform 0.1s ease;
+        }
+        input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        @keyframes pulse-border {
+            0%, 100% { border-color: rgba(232, 33, 39, 0.2); }
+            50% { border-color: rgba(232, 33, 39, 1); }
+        }
+        .speed-warning-active {
+            animation: pulse-border 0.6s infinite ease-in-out;
+            background: rgba(232, 33, 39, 0.25) !important;
+        }
+    </style>
+</head>
+<body class="h-full w-full flex flex-col font-sans bg-tesla-dark text-gray-100 antialiased overflow-hidden select-none relative">
+
+    <!-- FULLSCREEN ANIMATED AMBIENT CANVAS BACKGROUND -->
+    <canvas id="ambient-canvas" class="fixed inset-0 w-full h-full pointer-events-none z-0"></canvas>
+
+    <!-- HIDDEN AUDIO ELEMENT FOR PLAYBACK -->
+    <audio id="main-audio-player" class="hidden" crossorigin="anonymous"></audio>
+
+    <!-- SYSTEM CONTENT WRAPPER -->
+    <div class="relative z-10 flex flex-col h-full w-full">
+
+        <!-- TOP SYSTEM STATUS BAR -->
+        <header class="h-12 sm:h-14 w-full bg-black/80 backdrop-blur-xl border-b border-tesla-border/80 px-2 sm:px-6 flex items-center justify-between shrink-0 text-xs z-30">
+            
+            <!-- Left Section: Turn Signals & Gear -->
+            <div class="flex items-center space-x-1.5 sm:space-x-4">
+                <button id="btn-turn-left" onclick="toggleTurnSignal('left')" class="p-2 rounded-xl bg-tesla-card border border-tesla-border text-emerald-500/40 hover:text-emerald-400 active:scale-95 transition" title="Sol Dönmə Sinyalı">
+                    <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+                </button>
+
+                <button id="btn-hazard" onclick="toggleHazardLights()" class="p-2 rounded-xl bg-tesla-card border border-tesla-border text-tesla-red/40 hover:text-tesla-red active:scale-95 transition" title="Təhlükə Sinyalı">
+                    <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 2L1 21h22L12 2zm0 3.99L20.53 19H3.47L12 5.99zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z"/></svg>
+                </button>
+
+                <button id="btn-turn-right" onclick="toggleTurnSignal('right')" class="p-2 rounded-xl bg-tesla-card border border-tesla-border text-emerald-500/40 hover:text-emerald-400 active:scale-95 transition" title="Sağ Dönmə Sinyalı">
+                    <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8-8-8z"/></svg>
+                </button>
+
+                <div class="h-5 w-[1px] bg-tesla-border hidden sm:block"></div>
+
+                <div class="flex items-center space-x-1 font-bold tracking-wider text-xs font-mono bg-tesla-card/80 p-1 rounded-xl border border-tesla-border">
+                    <button onclick="setGear('P')" id="gear-P" class="px-2 py-0.5 rounded text-tesla-red bg-tesla-red/20 transition">P</button>
+                    <button onclick="setGear('D')" id="gear-D" class="px-2 py-0.5 rounded text-tesla-muted transition">D</button>
+                </div>
+            </div>
+
+            <!-- Center Section: Clock, Lock & WakeLock -->
+            <div class="flex items-center space-x-2 sm:space-x-5 font-medium">
+                <div id="clock-display" class="text-xs sm:text-sm font-bold font-mono text-gray-100">12:00</div>
+                <div class="h-4 w-[1px] bg-tesla-border hidden sm:block"></div>
+                
+                <button id="top-lock-btn" onclick="toggleVehicleLock()" class="hover:text-white transition text-gray-400 p-1">
+                    <svg id="lock-icon-locked" class="w-4 h-4 text-tesla-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 118 0v4h8z"/></svg>
+                    <svg id="lock-icon-unlocked" class="w-4 h-4 text-tesla-red hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/></svg>
+                </button>
+
+                <!-- Wake Lock Indicator -->
+                <button id="btn-wakelock" onclick="toggleWakeLock()" class="flex items-center space-x-1 px-2 py-0.5 rounded-md bg-tesla-card border border-tesla-border text-[10px] font-mono text-emerald-400" title="Ekranın Sönməməsi (Wake Lock)">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" id="wakelock-dot"></span>
+                    <span class="hidden sm:inline">EKRAN AÇIQ</span>
+                </button>
+            </div>
+
+            <!-- Right Section: GPS & Battery -->
+            <div class="flex items-center space-x-2 sm:space-x-4">
+                <div id="gps-status-badge" class="flex items-center space-x-1.5 font-mono text-[10px] bg-tesla-card px-2 py-1 rounded-lg border border-tesla-border">
+                    <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping" id="gps-dot"></span>
+                    <span id="gps-status-text" class="text-amber-400 font-bold">GPS AXTARILIR...</span>
+                </div>
+
+                <div onclick="toggleChargingState()" class="flex items-center space-x-1.5 cursor-pointer hover:opacity-80 transition" title="Şarj statusu">
+                    <svg id="charging-bolt" class="w-3.5 h-3.5 text-amber-400 hidden animate-bounce" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.57l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.57l7-10a1 1 0 011.12-.384z" clip-rule="evenodd"/></svg>
+                    <span class="text-xs font-bold font-mono text-gray-200"><span id="battery-level-text">85</span>%</span>
+                    <div class="w-8 sm:w-9 h-3.5 sm:h-4 border border-gray-500 rounded-sm p-0.5 flex items-center relative">
+                        <div id="battery-bar" class="h-full bg-emerald-500 transition-all duration-500" style="width: 85%;"></div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN BODY SECTION -->
+        <main class="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+            
+            <!-- DRIVE & SPEEDOMETER PANEL (Left Side) -->
+            <section id="left-drive-panel" class="w-full lg:w-[42%] h-56 sm:h-64 lg:h-full bg-black/40 backdrop-blur-md flex flex-col justify-between p-3 sm:p-5 border-b lg:border-b-0 lg:border-r border-tesla-border/60 relative select-none shrink-0">
+                
+                <!-- Speedometer Container -->
+                <div id="speedometer-container" class="z-20 flex flex-col items-center pt-1 transition-all duration-300 rounded-2xl p-2">
+                    <div class="flex items-baseline space-x-2">
+                        <span id="speed-display" class="text-5xl sm:text-7xl lg:text-8xl font-black tracking-tight text-white font-mono leading-none">0</span>
+                        <span class="text-gray-400 font-extrabold text-xs sm:text-sm tracking-widest">KM/SAAT</span>
+                    </div>
+
+                    <!-- Telemetry Stats -->
+                    <div class="mt-2 flex flex-wrap justify-center items-center gap-2 text-[10px] sm:text-[11px] font-mono">
+                        <div class="px-2.5 py-1 rounded-md bg-tesla-card border border-tesla-border text-gray-300 flex items-center space-x-1">
+                            <svg class="w-3 h-3 text-tesla-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                            <span>MƏSAFƏ: <span id="trip-distance-display" class="font-bold text-white">0.00</span> KM</span>
+                        </div>
+
+                        <div class="px-2.5 py-1 rounded-md bg-tesla-card border border-tesla-border text-gray-300">
+                            <span>DƏQİQLİK: <span id="gps-accuracy-display" class="font-bold text-amber-400">±-- m</span></span>
+                        </div>
+                    </div>
+
+                    <div class="mt-2 flex items-center space-x-3 text-[10px] sm:text-[11px] font-mono text-gray-400">
+                        <span>Maks: <span id="top-speed-display" class="text-white font-bold">0</span> km/s</span>
+                        <span>•</span>
+                        <span>Orta: <span id="avg-speed-display" class="text-white font-bold">0</span> km/s</span>
+                        <span>•</span>
+                        <span>Müd: <span id="drive-duration-display" class="text-white font-bold">00:00</span></span>
+                    </div>
+                </div>
+
+                <!-- Scooter Motion Canvas -->
+                <div class="absolute inset-0 flex items-center justify-center overflow-hidden pointer-events-none">
+                    <canvas id="drive-canvas" class="w-full h-full"></canvas>
+                </div>
+
+                <!-- Test Throttle / Brake Controls -->
+                <div class="z-20 w-full flex flex-col space-y-1 pt-1">
+                    <div class="flex justify-between items-center text-[10px] font-mono text-gray-400 px-1">
+                        <span>Manual Test Simulyatoru:</span>
+                        <span id="speed-limit-badge" class="text-tesla-red font-bold">HƏD: 25 KM/S</span>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button id="btn-brake" class="flex-1 py-2 bg-red-950/50 hover:bg-red-900/70 active:scale-95 border border-red-800/50 rounded-xl font-bold tracking-wider text-xs text-red-200 transition flex items-center justify-center space-x-1">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+                            <span>TORMOZ</span>
+                        </button>
+                        <button id="btn-accel" class="flex-1 py-2 bg-emerald-950/50 hover:bg-emerald-900/70 active:scale-95 border border-emerald-800/50 rounded-xl font-bold tracking-wider text-xs text-emerald-200 transition flex items-center justify-center space-x-1">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
+                            <span>SÜRƏTLƏN</span>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- RIGHT PANEL: TABBED APPLICATIONS -->
+            <section class="flex-1 bg-tesla-panel relative flex flex-col overflow-hidden">
+                
+                <!-- TAB 1: VEHICLE CONTROLS & ANIMATED BACKGROUND SETTINGS -->
+                <div id="view-controls" class="app-view absolute inset-0 p-4 sm:p-6 flex flex-col justify-between overflow-y-auto no-scrollbar">
+                    <div class="max-w-4xl mx-auto w-full space-y-4">
+                        <div class="flex justify-between items-center border-b border-tesla-border/60 pb-2">
+                            <h2 class="text-xs sm:text-sm font-bold tracking-widest text-gray-300 uppercase">Skuter İdarəetməsi Və Rejimlər</h2>
+                            <span id="speed-limit-setting-text" class="text-xs text-tesla-accent font-semibold font-mono">Xəbərdarlıq Limit: 25 km/s</span>
+                        </div>
+
+                        <!-- Dynamic Background Theme Selector -->
+                        <div class="glass-panel p-4 rounded-2xl space-y-3">
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs font-bold text-gray-300 uppercase tracking-wider">Arxa Fon Animasya Rejimi</span>
+                                <label class="flex items-center space-x-2 cursor-pointer">
+                                    <input type="checkbox" id="bg-anim-toggle" checked onchange="toggleBgAnimation(this.checked)" class="form-checkbox h-4 w-4 text-tesla-accent rounded border-gray-700 bg-gray-900">
+                                    <span class="text-xs font-mono text-emerald-400">AKTİV</span>
+                                </label>
+                            </div>
+                            <div class="grid grid-cols-3 gap-2 bg-black/40 p-1 rounded-xl border border-tesla-border text-xs">
+                                <button onclick="setBgTheme('grid')" id="bg-theme-grid" class="py-2 font-semibold rounded-lg bg-tesla-card text-white shadow">ŞƏFƏQ QRİDİ</button>
+                                <button onclick="setBgTheme('starfield')" id="bg-theme-starfield" class="py-2 font-semibold rounded-lg text-gray-400">ULDUZ SÜRƏTİ</button>
+                                <button onclick="setBgTheme('waves')" id="bg-theme-waves" class="py-2 font-semibold rounded-lg text-gray-400">NEON DALĞALARI</button>
+                            </div>
+                        </div>
+
+                        <!-- Speed Limit Safety Threshold Slider -->
+                        <div class="glass-panel p-4 rounded-2xl space-y-3">
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs font-bold text-gray-300 uppercase tracking-wider">Sürət Limit Xəbərdarlığı</span>
+                                <span id="speed-limit-val" class="text-xs font-bold font-mono text-tesla-red">25 KM/S</span>
+                            </div>
+                            <input type="range" min="10" max="45" value="25" id="speed-limit-slider" oninput="updateSpeedLimitThreshold(this.value)" class="w-full">
+                        </div>
+
+                        <!-- Exterior Lights & Ambient LED -->
+                        <div class="glass-panel p-4 rounded-2xl space-y-3">
+                            <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Ön İşıqlar</span>
+                            <div class="grid grid-cols-4 gap-2 bg-black/40 p-1 rounded-xl border border-tesla-border">
+                                <button onclick="setLightMode('off')" id="light-off" class="py-2 text-xs font-semibold rounded-lg text-gray-400">KAPALI</button>
+                                <button onclick="setLightMode('auto')" id="light-auto" class="py-2 text-xs font-semibold rounded-lg bg-tesla-card text-white shadow">AVTO</button>
+                                <button onclick="setLightMode('on')" id="light-on" class="py-2 text-xs font-semibold rounded-lg text-gray-400">AÇIQ</button>
+                                <button onclick="setLightMode('high')" id="light-high" class="py-2 text-xs font-semibold rounded-lg text-gray-400">UZUN</button>
+                            </div>
+                        </div>
+
+                        <!-- Ride Modes -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div class="glass-panel p-4 rounded-2xl space-y-3">
+                                <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Sürüş Rejimi</span>
+                                <div class="flex bg-black/40 p-1 rounded-xl border border-tesla-border">
+                                    <button onclick="setRideMode('eco')" id="ride-eco" class="flex-1 py-2 text-xs font-semibold rounded-lg text-gray-400">ECO</button>
+                                    <button onclick="setRideMode('standard')" id="ride-standard" class="flex-1 py-2 text-xs font-semibold rounded-lg bg-tesla-card text-white shadow">STANDARD</button>
+                                    <button onclick="setRideMode('sport')" id="ride-sport" class="flex-1 py-2 text-xs font-semibold rounded-lg text-gray-400">SPORT</button>
+                                </div>
+                            </div>
+
+                            <div class="glass-panel p-4 rounded-2xl flex items-center justify-between">
+                                <div>
+                                    <div class="text-xs font-bold text-white">Brake Hold (Elektron Tormoz)</div>
+                                    <div id="brake-hold-text" class="text-[10px] text-gray-400 font-mono">AKTİVDİR</div>
+                                </div>
+                                <button onclick="toggleBrakeHold()" id="btn-toggle-brakehold" class="px-4 py-2 bg-tesla-card border border-tesla-border hover:border-tesla-accent text-xs font-bold text-white rounded-xl">DEAKTİV ET</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 2: INDEXEDDB MEDIA PLAYER & EQUALIZER -->
+                <div id="view-media" class="app-view absolute inset-0 p-4 sm:p-6 flex flex-col justify-between overflow-y-auto no-scrollbar hidden">
+                    <div class="max-w-3xl mx-auto w-full space-y-4">
+                        <div class="glass-panel p-4 sm:p-6 rounded-3xl flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-6 shadow-2xl">
+                            <div class="w-24 h-24 sm:w-32 sm:h-32 rounded-2xl bg-gradient-to-tr from-gray-900 via-tesla-accent/40 to-tesla-accent flex items-center justify-center shrink-0 shadow-2xl relative overflow-hidden">
+                                <svg class="w-12 h-12 text-white/60 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 .895-2 3-2 3 .895 3 2zm12 0c0 1.105-1.343 2-3 2s-3-.895-3-2 .895-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+                            </div>
+
+                            <div class="flex-1 w-full flex flex-col space-y-2 sm:space-y-3">
+                                <div>
+                                    <h2 id="media-title" class="text-base sm:text-lg font-bold tracking-tight text-white truncate">Mahnı Seçilməyib</h2>
+                                    <p id="media-artist" class="text-xs font-medium text-tesla-muted">Tesla Audio Player (IndexedDB Store)</p>
+                                </div>
+
+                                <div class="space-y-1">
+                                    <input id="media-seek" type="range" min="0" max="100" value="0" onchange="seekAudio(this.value)" class="w-full">
+                                    <div class="flex justify-between text-[10px] font-mono text-gray-400">
+                                        <span id="media-time-current">00:00</span>
+                                        <span id="media-time-total">00:00</span>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center justify-between pt-1">
+                                    <div class="flex items-center space-x-4">
+                                        <button onclick="prevTrack()" class="text-gray-400 hover:text-white transition"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg></button>
+                                        <button id="btn-play-pause" onclick="togglePlay()" class="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 active:scale-95 transition shadow-lg">
+                                            <svg id="icon-play" class="w-5 h-5 fill-current ml-0.5" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                            <svg id="icon-pause" class="w-5 h-5 fill-current hidden" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                                        </button>
+                                        <button onclick="nextTrack()" class="text-gray-400 hover:text-white transition"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg></button>
+                                    </div>
+
+                                    <label class="px-3 py-1.5 bg-tesla-card hover:bg-tesla-border border border-tesla-border rounded-xl cursor-pointer text-xs font-semibold text-gray-200 transition flex items-center space-x-2">
+                                        <svg class="w-4 h-4 text-tesla-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                                        <span>Mahnı Yüklə</span>
+                                        <input type="file" id="audio-file-input" accept="audio/*" class="hidden" onchange="handleAudioUpload(event)">
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Equalizer & Playlist -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div class="glass-panel p-4 rounded-2xl space-y-2">
+                                <span class="text-xs font-bold text-gray-400 tracking-wider uppercase">3-Bant Ekvalayzer</span>
+                                <div class="space-y-2">
+                                    <div>
+                                        <div class="flex justify-between text-xs text-gray-300 mb-1"><span>BASS</span><span id="bass-val" class="font-mono text-tesla-accent">0 dB</span></div>
+                                        <input type="range" min="-12" max="12" value="0" id="eq-bass" oninput="updateEQ('bass', this.value)" class="w-full">
+                                    </div>
+                                    <div>
+                                        <div class="flex justify-between text-xs text-gray-300 mb-1"><span>MID</span><span id="mid-val" class="font-mono text-tesla-accent">0 dB</span></div>
+                                        <input type="range" min="-12" max="12" value="0" id="eq-mid" oninput="updateEQ('mid', this.value)" class="w-full">
+                                    </div>
+                                    <div>
+                                        <div class="flex justify-between text-xs text-gray-300 mb-1"><span>TREBLE</span><span id="treble-val" class="font-mono text-tesla-accent">0 dB</span></div>
+                                        <input type="range" min="-12" max="12" value="0" id="eq-treble" oninput="updateEQ('treble', this.value)" class="w-full">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="glass-panel p-4 rounded-2xl flex flex-col justify-between">
+                                <span class="text-xs font-bold text-gray-400 tracking-wider uppercase mb-2">Pleylist (Yaddaşda Saxlanılır)</span>
+                                <div id="playlist-container" class="space-y-2 max-h-36 overflow-y-auto no-scrollbar">
+                                    <div class="text-xs text-gray-500 italic">Heç bir mahnı yaddaşda yoxdur.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 3: CLIMATE & HEATER -->
+                <div id="view-climate" class="app-view absolute inset-0 p-4 sm:p-6 flex flex-col justify-between overflow-y-auto no-scrollbar hidden">
+                    <div class="max-w-4xl mx-auto w-full space-y-4">
+                        <div class="flex justify-between items-center border-b border-tesla-border/60 pb-2">
+                            <h2 class="text-xs sm:text-sm font-bold tracking-widest text-gray-300 uppercase">Əlcək Və Oturacaq Qızdırıcısı</h2>
+                            <button id="climate-power-btn" onclick="toggleClimatePower()" class="px-3 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 rounded-lg text-xs font-bold">AÇIQ</button>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div class="glass-panel p-5 rounded-3xl flex flex-col items-center justify-between space-y-4">
+                                <span class="text-xs font-bold text-gray-400 tracking-wider">SÜKAN QIZDIRICISI</span>
+                                <div class="flex items-center space-x-6">
+                                    <button onclick="adjustTemp('driver', -0.5)" class="w-10 h-10 rounded-full bg-tesla-card hover:bg-tesla-border border border-tesla-border flex items-center justify-center text-xl font-bold text-white transition">-</button>
+                                    <span id="temp-driver" class="text-4xl font-extrabold font-mono text-white">22.0°</span>
+                                    <button onclick="adjustTemp('driver', 0.5)" class="w-10 h-10 rounded-full bg-tesla-card hover:bg-tesla-border border border-tesla-border flex items-center justify-center text-xl font-bold text-white transition">+</button>
+                                </div>
+                            </div>
+
+                            <div class="glass-panel p-5 rounded-3xl flex flex-col items-center justify-between space-y-4">
+                                <span class="text-xs font-bold text-gray-400 tracking-wider">BATAREYA İSİDİCİSİ</span>
+                                <div class="flex items-center space-x-6">
+                                    <button onclick="adjustTemp('passenger', -0.5)" class="w-10 h-10 rounded-full bg-tesla-card hover:bg-tesla-border border border-tesla-border flex items-center justify-center text-xl font-bold text-white transition">-</button>
+                                    <span id="temp-passenger" class="text-4xl font-extrabold font-mono text-white">24.0°</span>
+                                    <button onclick="adjustTemp('passenger', 0.5)" class="w-10 h-10 rounded-full bg-tesla-card hover:bg-tesla-border border border-tesla-border flex items-center justify-center text-xl font-bold text-white transition">+</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 4: ENERGY & BATTERY STATS -->
+                <div id="view-energy" class="app-view absolute inset-0 p-4 sm:p-6 flex flex-col justify-between overflow-y-auto no-scrollbar hidden">
+                    <div class="max-w-4xl mx-auto w-full space-y-4">
+                        <div class="flex justify-between items-center border-b border-tesla-border/60 pb-2">
+                            <h2 class="text-xs sm:text-sm font-bold tracking-widest text-gray-300 uppercase">Enerji Və Batareya Statistikası</h2>
+                            <span id="estimated-range-text" class="text-xs font-mono text-emerald-400">Təxmini Məsafə: 38 km</span>
+                        </div>
+
+                        <div class="glass-panel p-4 rounded-3xl h-52 relative w-full flex flex-col justify-between">
+                            <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Enerji Sərfiyyat Qrafiki (Wh/km)</span>
+                            <canvas id="energy-chart-canvas" class="w-full h-36"></canvas>
+                        </div>
+
+                        <div class="glass-panel p-4 rounded-3xl space-y-3">
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Maksimum Şarj Həddi</span>
+                                <span id="charge-limit-val" class="text-sm font-bold font-mono text-tesla-accent">90%</span>
+                            </div>
+                            <input type="range" min="50" max="100" value="90" id="charge-limit-slider" oninput="updateChargeLimit(this.value)" class="w-full">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 5: SECURITY / SENTRY -->
+                <div id="view-security" class="app-view absolute inset-0 p-4 sm:p-6 flex flex-col justify-between overflow-y-auto no-scrollbar hidden">
+                    <div class="max-w-4xl mx-auto w-full space-y-4">
+                        <div class="flex justify-between items-center border-b border-tesla-border/60 pb-2">
+                            <h2 class="text-xs sm:text-sm font-bold tracking-widest text-gray-300 uppercase">Təhlükəsizlik Rejimləri</h2>
+                            <span class="text-xs text-tesla-accent font-semibold">Scooter Guard V12</span>
+                        </div>
+
+                        <div class="glass-panel p-5 rounded-3xl space-y-4">
+                            <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Xüsusi Rejimlər</span>
+                            <div class="grid grid-cols-2 gap-3">
+                                <button onclick="toggleSpecialMode('sentry')" id="btn-mode-sentry" class="py-4 rounded-xl bg-tesla-card border border-tesla-border text-xs font-bold text-gray-300 hover:border-tesla-accent">SENTRY REJİMİ</button>
+                                <button onclick="toggleSpecialMode('valet')" id="btn-mode-valet" class="py-4 rounded-xl bg-tesla-card border border-tesla-border text-xs font-bold text-gray-300 hover:border-tesla-accent">MƏHDUD YÜRÜŞ</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+        </main>
+
+        <!-- BOTTOM DOCK NAVIGATION -->
+        <footer class="h-14 sm:h-16 w-full bg-black/90 backdrop-blur-xl border-t border-tesla-border/80 px-2 sm:px-6 flex items-center justify-between shrink-0 z-30">
+            <div class="flex items-center space-x-1 sm:space-x-2">
+                <button onclick="adjustTemp('driver', -0.5)" class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-tesla-card hover:bg-tesla-border text-gray-300 font-bold text-xs flex items-center justify-center transition">-</button>
+                <span id="dock-driver-temp" class="text-xs sm:text-sm font-bold font-mono text-white w-9 sm:w-10 text-center">22.0°</span>
+                <button onclick="adjustTemp('driver', 0.5)" class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-tesla-card hover:bg-tesla-border text-gray-300 font-bold text-xs flex items-center justify-center transition">+</button>
+            </div>
+
+            <div class="flex items-center space-x-1 sm:space-x-4 md:space-x-6">
+                <button onclick="switchTab('controls')" id="tab-controls" class="dock-tab text-tesla-accent bg-tesla-card border border-tesla-border p-2 sm:p-2.5 rounded-xl" title="İdarəetmə">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+                </button>
+
+                <button onclick="switchTab('media')" id="tab-media" class="dock-tab text-gray-400 hover:text-white transition p-2 sm:p-2.5 rounded-xl" title="Pleyer">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 .895-2 3-2 3 .895 3 2zm12 0c0 1.105-1.343 2-3 2s-3-.895-3-2 .895-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+                </button>
+
+                <button onclick="switchTab('climate')" id="tab-climate" class="dock-tab text-gray-400 hover:text-white transition p-2 sm:p-2.5 rounded-xl" title="İqlim">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m0 0l-2-1m2 1v2.5M14 4l-2 1m0 0l-2-1m2 1v2.5M4 7l2-1m-2 1l2 1m-2-1v2.5m6 9l-2 1m0 0l-2-1m2 1v2.5"/></svg>
+                </button>
+
+                <button onclick="switchTab('energy')" id="tab-energy" class="dock-tab text-gray-400 hover:text-white transition p-2 sm:p-2.5 rounded-xl" title="Enerji">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                </button>
+
+                <button onclick="switchTab('security')" id="tab-security" class="dock-tab text-gray-400 hover:text-white transition p-2 sm:p-2.5 rounded-xl" title="Təhlükəsizlik">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                </button>
+            </div>
+
+            <div class="flex items-center space-x-1 sm:space-x-2">
+                <button onclick="adjustTemp('passenger', -0.5)" class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-tesla-card hover:bg-tesla-border text-gray-300 font-bold text-xs flex items-center justify-center transition">-</button>
+                <span id="dock-passenger-temp" class="text-xs sm:text-sm font-bold font-mono text-white w-9 sm:w-10 text-center">24.0°</span>
+                <button onclick="adjustTemp('passenger', 0.5)" class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-tesla-card hover:bg-tesla-border text-gray-300 font-bold text-xs flex items-center justify-center transition">+</button>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- ENGINE & SYSTEM SCRIPT -->
+    <script>
+        // --- CENTRAL SYSTEM STATE ---
+        const state = {
+            speed: 0,
+            smoothedSpeed: 0,
+            topSpeed: 0,
+            speedHistory: [],
+            speedLimitThreshold: 25,
+            gear: 'P',
+            isAccelerating: false,
+            isBraking: false,
+            battery: 85,
+            isCharging: false,
+            isLocked: true,
+            wakeLock: null,
+            driverTemp: 22.0,
+            passengerTemp: 24.0,
+            
+            // Trip Metrics
+            startTime: Date.now(),
+            tripDistanceKm: 0,
+            lastLat: null,
+            lastLon: null,
+            lastTimestamp: null,
+
+            // Turn Signals & Hazards
+            turnLeft: false,
+            turnRight: false,
+            hazard: false,
+            blinkerTimer: null,
+            blinkerState: false,
+
+            // Lights & Scooter Settings
+            headlightMode: 'auto',
+            rideMode: 'standard',
+            brakeHold: true,
+
+            // Animated Background Settings
+            bgAnimEnabled: true,
+            bgTheme: 'grid', // 'grid', 'starfield', 'waves'
+
+            // Web Audio & Playlist
+            audioElement: null,
+            playlist: [],
+            currentTrackIndex: -1,
+            db: null,
+            audioCtx: null,
+            sourceNode: null,
+            eqNodes: { bass: null, mid: null, treble: null }
+        };
+
+        // --- INIT UPON LOAD ---
+        window.addEventListener('DOMContentLoaded', () => {
+            initClock();
+            initDurationCounter();
+            initGPS();
+            requestWakeLock();
+            initAmbientCanvas();
+            initDriveCanvas();
+            initEnergyChart();
+            initAudioPlayer();
+            initAudioDB();
+            bindManualDriveControls();
+        });
+
+        // --- SCREEN WAKE LOCK API ---
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    state.wakeLock = await navigator.wakeLock.request('screen');
+                    document.getElementById('wakelock-dot').className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+                }
+            } catch (err) {}
+        }
+
+        function toggleWakeLock() {
+            if (state.wakeLock) {
+                state.wakeLock.release();
+                state.wakeLock = null;
+                document.getElementById('wakelock-dot').className = 'w-2 h-2 rounded-full bg-gray-600';
+            } else {
+                requestWakeLock();
+            }
+        }
+
+        // --- FULLSCREEN ANIMATED AMBIENT CANVAS BACKGROUND ENGINE ---
+        function initAmbientCanvas() {
+            const canvas = document.getElementById('ambient-canvas');
+            const ctx = canvas.getContext('2d');
+
+            function resize() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+            resize();
+            window.addEventListener('resize', resize);
+
+            // Particles for Starfield
+            const starCount = 120;
+            const stars = Array.from({ length: starCount }, () => ({
+                x: (Math.random() - 0.5) * window.innerWidth,
+                y: (Math.random() - 0.5) * window.innerHeight,
+                z: Math.random() * window.innerWidth
+            }));
+
+            let gridOffset = 0;
+            let wavePhase = 0;
+
+            function renderAmbient() {
+                if (!state.bgAnimEnabled) {
+                    ctx.fillStyle = '#08090a';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    requestAnimationFrame(renderAmbient);
+                    return;
+                }
+
+                ctx.fillStyle = 'rgba(8, 9, 10, 0.3)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                const currentSpeedFactor = Math.max(1, state.speed * 0.4);
+
+                if (state.bgTheme === 'grid') {
+                    // Futuristic Horizon Laser Grid
+                    gridOffset = (gridOffset + 1 + currentSpeedFactor * 1.5) % 40;
+
+                    ctx.save();
+                    ctx.strokeStyle = state.hazard ? 'rgba(232, 33, 39, 0.25)' : (state.gear === 'D' ? 'rgba(62, 106, 225, 0.22)' : 'rgba(16, 185, 129, 0.18)');
+                    ctx.lineWidth = 1.5;
+
+                    const horizonY = canvas.height * 0.45;
+                    const cx = canvas.width / 2;
+
+                    // Perspective Lines
+                    for (let x = -canvas.width; x < canvas.width * 2; x += 80) {
+                        ctx.beginPath();
+                        ctx.moveTo(x, canvas.height);
+                        ctx.lineTo(cx + (x - cx) * 0.1, horizonY);
+                        ctx.stroke();
+                    }
+
+                    // Horizontal Grid Lines
+                    for (let y = horizonY; y < canvas.height; y += (y - horizonY) * 0.12 + 2) {
+                        const adjustedY = y + (gridOffset % 15);
+                        if (adjustedY < canvas.height) {
+                            ctx.beginPath();
+                            ctx.moveTo(0, adjustedY);
+                            ctx.lineTo(canvas.width, adjustedY);
+                            ctx.stroke();
+                        }
+                    }
+
+                    ctx.restore();
+
+                } else if (state.bgTheme === 'starfield') {
+                    // Warp Speed Starfield
+                    const cx = canvas.width / 2;
+                    const cy = canvas.height / 2;
+
+                    ctx.fillStyle = state.hazard ? '#e82127' : '#3e6ae1';
+                    for (let i = 0; i < stars.length; i++) {
+                        const s = stars[i];
+                        s.z -= 1.5 + currentSpeedFactor * 2;
+
+                        if (s.z <= 0) {
+                            s.z = canvas.width;
+                            s.x = (Math.random() - 0.5) * canvas.width;
+                            s.y = (Math.random() - 0.5) * canvas.height;
+                        }
+
+                        const k = 256 / s.z;
+                        const px = s.x * k + cx;
+                        const py = s.y * k + cy;
+
+                        if (px >= 0 && px <= canvas.width && py >= 0 && py <= canvas.height) {
+                            const size = Math.max(0.5, (1 - s.z / canvas.width) * 3);
+                            ctx.beginPath();
+                            ctx.arc(px, py, size, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                    }
+
+                } else if (state.bgTheme === 'waves') {
+                    // Dynamic Sine Wave Glow
+                    wavePhase += 0.02 + (currentSpeedFactor * 0.005);
+                    ctx.save();
+                    ctx.lineWidth = 2;
+
+                    for (let i = 0; i < 4; i++) {
+                        ctx.strokeStyle = i % 2 === 0 ? 'rgba(62, 106, 225, 0.2)' : 'rgba(16, 185, 129, 0.15)';
+                        ctx.beginPath();
+                        for (let x = 0; x < canvas.width; x += 15) {
+                            const y = Math.sin(x * 0.005 + wavePhase + i) * 60 + canvas.height * (0.3 + i * 0.15);
+                            if (x === 0) ctx.moveTo(x, y);
+                            else ctx.lineTo(x, y);
+                        }
+                        ctx.stroke();
+                    }
+                    ctx.restore();
+                }
+
+                requestAnimationFrame(renderAmbient);
+            }
+
+            renderAmbient();
+        }
+
+        function toggleBgAnimation(enabled) {
+            state.bgAnimEnabled = enabled;
+        }
+
+        function setBgTheme(theme) {
+            state.bgTheme = theme;
+            ['grid', 'starfield', 'waves'].forEach(t => {
+                const btn = document.getElementById(`bg-theme-${t}`);
+                if (btn) btn.className = t === theme ? 'py-2 font-semibold rounded-lg bg-tesla-card text-white shadow' : 'py-2 font-semibold rounded-lg text-gray-400';
+            });
+        }
+
+        // --- SYNTHESIZED SOUNDS ---
+        function playSoundClick(freq = 600, duration = 0.04) {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(freq / 2, ctx.currentTime + duration);
+                gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + duration);
+            } catch(e) {}
+        }
+
+        function playSpeedWarningAlarm() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(880, ctx.currentTime);
+                gain.gain.setValueAtTime(0.12, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.12);
+            } catch(e) {}
+        }
+
+        // --- TURN SIGNALS & HAZARDS ---
+        function toggleTurnSignal(dir) {
+            if (dir === 'left') {
+                state.turnLeft = !state.turnLeft;
+                state.turnRight = false;
+            } else if (dir === 'right') {
+                state.turnRight = !state.turnRight;
+                state.turnLeft = false;
+            }
+            state.hazard = false;
+            updateBlinkerLoop();
+        }
+
+        function toggleHazardLights() {
+            state.hazard = !state.hazard;
+            state.turnLeft = false;
+            state.turnRight = false;
+            updateBlinkerLoop();
+        }
+
+        function updateBlinkerLoop() {
+            if (state.blinkerTimer) {
+                clearInterval(state.blinkerTimer);
+                state.blinkerTimer = null;
+            }
+
+            const btnLeft = document.getElementById('btn-turn-left');
+            const btnRight = document.getElementById('btn-turn-right');
+            const btnHazard = document.getElementById('btn-hazard');
+
+            const isAnyActive = state.turnLeft || state.turnRight || state.hazard;
+
+            if (!isAnyActive) {
+                btnLeft.className = 'p-2 rounded-xl bg-tesla-card border border-tesla-border text-emerald-500/40 hover:text-emerald-400 transition';
+                btnRight.className = 'p-2 rounded-xl bg-tesla-card border border-tesla-border text-emerald-500/40 hover:text-emerald-400 transition';
+                btnHazard.className = 'p-2 rounded-xl bg-tesla-card border border-tesla-border text-tesla-red/40 hover:text-tesla-red transition';
+                state.blinkerState = false;
+                return;
+            }
+
+            state.blinkerTimer = setInterval(() => {
+                state.blinkerState = !state.blinkerState;
+                if (state.blinkerState) playSoundClick(700, 0.03);
+
+                if (state.hazard) {
+                    btnHazard.className = state.blinkerState ? 'p-2 rounded-xl bg-tesla-red text-white transition' : 'p-2 rounded-xl bg-tesla-card border border-tesla-border text-tesla-red/40 transition';
+                    btnLeft.className = state.blinkerState ? 'p-2 rounded-xl bg-emerald-500 text-black transition' : 'p-2 rounded-xl bg-tesla-card border border-tesla-border text-emerald-500/40 transition';
+                    btnRight.className = state.blinkerState ? 'p-2 rounded-xl bg-emerald-500 text-black transition' : 'p-2 rounded-xl bg-tesla-card border border-tesla-border text-emerald-500/40 transition';
+                } else {
+                    btnHazard.className = 'p-2 rounded-xl bg-tesla-card border border-tesla-border text-tesla-red/40 transition';
+                    btnLeft.className = (state.turnLeft && state.blinkerState) ? 'p-2 rounded-xl bg-emerald-500 text-black transition' : 'p-2 rounded-xl bg-tesla-card border border-tesla-border text-emerald-500/40 transition';
+                    btnRight.className = (state.turnRight && state.blinkerState) ? 'p-2 rounded-xl bg-emerald-500 text-black transition' : 'p-2 rounded-xl bg-tesla-card border border-tesla-border text-emerald-500/40 transition';
+                }
+            }, 500);
+        }
+
+        function setGear(g) {
+            state.gear = g;
+            ['P', 'D'].forEach(item => {
+                const el = document.getElementById(`gear-${item}`);
+                if (item === g) {
+                    el.className = 'px-2 py-0.5 rounded text-tesla-red bg-tesla-red/20 font-extrabold transition';
+                } else {
+                    el.className = 'px-2 py-0.5 rounded text-tesla-muted transition';
+                }
+            });
+        }
+
+        function initClock() {
+            const update = () => {
+                const now = new Date();
+                document.getElementById('clock-display').innerText = 
+                    `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            };
+            update();
+            setInterval(update, 5000);
+        }
+
+        function initDurationCounter() {
+            setInterval(() => {
+                const elapsedSec = Math.floor((Date.now() - state.startTime) / 1000);
+                const m = Math.floor(elapsedSec / 60);
+                const s = elapsedSec % 60;
+                document.getElementById('drive-duration-display').innerText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+            }, 1000);
+        }
+
+        // --- REAL-WORLD GPS GEOLOCATION ENGINE ---
+        function initGPS() {
+            if (!('geolocation' in navigator)) {
+                document.getElementById('gps-status-text').innerText = 'GPS DƏSTƏKLƏNMİR';
+                return;
+            }
+
+            navigator.geolocation.watchPosition(
+                (pos) => {
+                    const lat = pos.coords.latitude;
+                    const lon = pos.coords.longitude;
+                    const accuracy = pos.coords.accuracy;
+                    const now = pos.timestamp || Date.now();
+
+                    document.getElementById('gps-dot').className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+                    document.getElementById('gps-status-text').innerText = 'GPS AKTİVDİR';
+                    document.getElementById('gps-status-text').className = 'text-emerald-400 font-bold';
+                    document.getElementById('gps-accuracy-display').innerText = `±${Math.round(accuracy)} m`;
+
+                    let rawSpeed = 0;
+
+                    if (pos.coords.speed !== null && pos.coords.speed !== undefined && pos.coords.speed >= 0) {
+                        rawSpeed = pos.coords.speed * 3.6;
+                    } else if (state.lastLat !== null && state.lastLon !== null && state.lastTimestamp) {
+                        const distKm = haversineDistance(state.lastLat, state.lastLon, lat, lon);
+                        const timeHours = (now - state.lastTimestamp) / 3600000;
+                        if (timeHours > 0) rawSpeed = distKm / timeHours;
+                    }
+
+                    // Low-Pass Exponential Moving Average (EMA) Smoothing
+                    const alpha = 0.35;
+                    state.smoothedSpeed = (alpha * rawSpeed) + ((1 - alpha) * state.smoothedSpeed);
+                    if (state.smoothedSpeed < 0.5) state.smoothedSpeed = 0;
+
+                    if (!state.isAccelerating) state.speed = state.smoothedSpeed;
+
+                    if (state.lastLat !== null && state.lastLon !== null) {
+                        const d = haversineDistance(state.lastLat, state.lastLon, lat, lon);
+                        if (d > 0.001) {
+                            state.tripDistanceKm += d;
+                            document.getElementById('trip-distance-display').innerText = state.tripDistanceKm.toFixed(2);
+                        }
+                    }
+
+                    state.lastLat = lat;
+                    state.lastLon = lon;
+                    state.lastTimestamp = now;
+                },
+                (err) => {
+                    document.getElementById('gps-dot').className = 'w-2 h-2 rounded-full bg-red-500';
+                    document.getElementById('gps-status-text').innerText = 'GPS XƏTASI';
+                    document.getElementById('gps-status-text').className = 'text-red-500 font-bold';
+                },
+                { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+            );
+        }
+
+        function haversineDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+        }
+
+        // --- INDEXEDDB AUDIO SYSTEM ---
+        function initAudioPlayer() {
+            state.audioElement = document.getElementById('main-audio-player');
+
+            state.audioElement.addEventListener('timeupdate', () => {
+                if (!state.audioElement.duration) return;
+                const percent = (state.audioElement.currentTime / state.audioElement.duration) * 100;
+                document.getElementById('media-seek').value = percent;
+                document.getElementById('media-time-current').innerText = formatTime(state.audioElement.currentTime);
+                document.getElementById('media-time-total').innerText = formatTime(state.audioElement.duration);
+            });
+
+            state.audioElement.addEventListener('ended', () => nextTrack());
+        }
+
+        function setupWebAudioContext() {
+            if (state.audioCtx) return;
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                state.audioCtx = new AudioContext();
+                state.sourceNode = state.audioCtx.createMediaElementSource(state.audioElement);
+
+                state.eqNodes.bass = state.audioCtx.createBiquadFilter();
+                state.eqNodes.bass.type = 'lowshelf';
+                state.eqNodes.bass.frequency.value = 250;
+
+                state.eqNodes.mid = state.audioCtx.createBiquadFilter();
+                state.eqNodes.mid.type = 'peaking';
+                state.eqNodes.mid.frequency.value = 1500;
+
+                state.eqNodes.treble = state.audioCtx.createBiquadFilter();
+                state.eqNodes.treble.type = 'highshelf';
+                state.eqNodes.treble.frequency.value = 4000;
+
+                state.sourceNode.connect(state.eqNodes.bass);
+                state.eqNodes.bass.connect(state.eqNodes.mid);
+                state.eqNodes.mid.connect(state.eqNodes.treble);
+                state.eqNodes.treble.connect(state.audioCtx.destination);
+            } catch(e) {}
+        }
+
+        function initAudioDB() {
+            const req = indexedDB.open('TeslaScooterPlaylistDB', 1);
+            req.onupgradeneeded = (e) => {
+                const db = e.target.result;
+                if (!db.objectStoreNames.contains('tracks')) {
+                    db.createObjectStore('tracks', { keyPath: 'id', autoIncrement: true });
+                }
+            };
+            req.onsuccess = (e) => {
+                state.db = e.target.result;
+                loadPlaylistFromDB();
+            };
+        }
+
+        function handleAudioUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const trackData = {
+                    name: file.name.replace(/\.[^/.]+$/, ""),
+                    audioBlob: event.target.result
+                };
+                const tx = state.db.transaction('tracks', 'readwrite');
+                tx.objectStore('tracks').add(trackData);
+                tx.oncomplete = () => loadPlaylistFromDB(true);
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function loadPlaylistFromDB(autoPlayLast = false) {
+            if (!state.db) return;
+            const tx = state.db.transaction('tracks', 'readonly');
+            const req = tx.objectStore('tracks').getAll();
+
+            req.onsuccess = () => {
+                state.playlist = req.result;
+                const container = document.getElementById('playlist-container');
+                container.innerHTML = '';
+
+                if (state.playlist.length === 0) {
+                    container.innerHTML = '<div class="text-xs text-gray-500 italic">Heç bir mahnı yüklənməyib.</div>';
+                    return;
+                }
+
+                state.playlist.forEach((track, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'p-2 rounded-xl bg-tesla-card hover:bg-tesla-border cursor-pointer transition flex items-center justify-between text-xs';
+                    item.innerHTML = `
+                        <span class="font-semibold text-gray-200 truncate max-w-[170px]">${track.name}</span>
+                        <span class="text-[10px] text-tesla-accent font-bold">OYNAT</span>
+                    `;
+                    item.onclick = () => playTrack(index);
+                    container.appendChild(item);
+                });
+
+                if (autoPlayLast && state.playlist.length > 0) playTrack(state.playlist.length - 1);
+            };
+        }
+
+        function playTrack(index) {
+            if (index < 0 || index >= state.playlist.length) return;
+            state.currentTrackIndex = index;
+            const track = state.playlist[index];
+
+            setupWebAudioContext();
+            if (state.audioCtx && state.audioCtx.state === 'suspended') state.audioCtx.resume();
+
+            const blob = new Blob([track.audioBlob], { type: 'audio/mp3' });
+            const url = URL.createObjectURL(blob);
+
+            state.audioElement.src = url;
+            state.audioElement.play();
+
+            document.getElementById('media-title').innerText = track.name;
+            document.getElementById('media-artist').innerText = "Skuter Audio";
+            document.getElementById('icon-play').classList.add('hidden');
+            document.getElementById('icon-pause').classList.remove('hidden');
+        }
+
+        function togglePlay() {
+            if (!state.audioElement.src && state.playlist.length > 0) { playTrack(0); return; }
+            if (state.audioElement.paused) {
+                state.audioElement.play();
+                document.getElementById('icon-play').classList.add('hidden');
+                document.getElementById('icon-pause').classList.remove('hidden');
+            } else {
+                state.audioElement.pause();
+                document.getElementById('icon-play').classList.remove('hidden');
+                document.getElementById('icon-pause').classList.add('hidden');
+            }
+        }
+
+        function nextTrack() {
+            if (state.playlist.length === 0) return;
+            playTrack((state.currentTrackIndex + 1) % state.playlist.length);
+        }
+
+        function prevTrack() {
+            if (state.playlist.length === 0) return;
+            playTrack((state.currentTrackIndex - 1 + state.playlist.length) % state.playlist.length);
+        }
+
+        function seekAudio(val) {
+            if (!state.audioElement.duration) return;
+            state.audioElement.currentTime = (val / 100) * state.audioElement.duration;
+        }
+
+        function updateEQ(band, val) {
+            document.getElementById(`${band}-val`).innerText = `${val > 0 ? '+' : ''}${val} dB`;
+            if (state.eqNodes[band]) state.eqNodes[band].gain.value = parseFloat(val);
+        }
+
+        function formatTime(sec) {
+            const m = Math.floor(sec / 60);
+            const s = Math.floor(sec % 60);
+            return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        }
+
+        // --- DRIVE CANVAS VISUALIZER ---
+        function initDriveCanvas() {
+            const canvas = document.getElementById('drive-canvas');
+            const ctx = canvas.getContext('2d');
+
+            function resize() {
+                canvas.width = canvas.parentElement.clientWidth;
+                canvas.height = canvas.parentElement.clientHeight;
+            }
+            resize();
+            window.addEventListener('resize', resize);
+
+            let offset = 0;
+
+            function animate() {
+                if (state.isAccelerating) {
+                    state.speed = Math.min(state.speed + 0.8, 50);
+                } else if (state.isBraking) {
+                    state.speed = Math.max(state.speed - 1.5, 0);
+                }
+
+                if (state.speed > 0 && state.gear === 'P') setGear('D');
+
+                const roundedSpeed = Math.round(state.speed);
+                document.getElementById('speed-display').innerText = roundedSpeed;
+
+                if (roundedSpeed > state.topSpeed) {
+                    state.topSpeed = roundedSpeed;
+                    document.getElementById('top-speed-display').innerText = state.topSpeed;
+                }
+
+                if (state.speed > 1) {
+                    state.speedHistory.push(state.speed);
+                    if (state.speedHistory.length > 500) state.speedHistory.shift();
+                    const avg = state.speedHistory.reduce((a, b) => a + b, 0) / state.speedHistory.length;
+                    document.getElementById('avg-speed-display').innerText = Math.round(avg);
+                }
+
+                const speedometerBox = document.getElementById('speedometer-container');
+                if (roundedSpeed > state.speedLimitThreshold) {
+                    speedometerBox.classList.add('speed-warning-active');
+                    playSpeedWarningAlarm();
+                } else {
+                    speedometerBox.classList.remove('speed-warning-active');
+                }
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                const cx = canvas.width / 2;
+                const cy = canvas.height / 2;
+
+                offset = (offset + state.speed * 0.2) % 35;
+
+                // Dynamic Lane Lines
+                ctx.strokeStyle = '#3e6ae1';
+                ctx.lineWidth = 3;
+                for (let i = 0; i < 7; i++) {
+                    const y = cy - 20 + (i * 24 + offset);
+                    if (y < canvas.height) {
+                        ctx.beginPath();
+                        ctx.moveTo(cx, y); ctx.lineTo(cx, y + 12);
+                        ctx.stroke();
+                    }
+                }
+
+                // E-Scooter Canvas Representation
+                const w = 24, h = 60;
+                const x = cx - w / 2, y = canvas.height - h - 20;
+
+                ctx.fillStyle = '#181b22';
+                ctx.strokeStyle = '#3e6ae1';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.roundRect(x, y, w, h, 6);
+                ctx.fill(); ctx.stroke();
+
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(cx - 20, y + 12); ctx.lineTo(cx + 20, y + 12);
+                ctx.stroke();
+
+                requestAnimationFrame(animate);
+            }
+            animate();
+        }
+
+        function initEnergyChart() {
+            const canvas = document.getElementById('energy-chart-canvas');
+            const ctx = canvas.getContext('2d');
+
+            function resize() {
+                canvas.width = canvas.parentElement.clientWidth;
+                canvas.height = canvas.parentElement.clientHeight;
+                draw();
+            }
+
+            function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.strokeStyle = '#10b981';
+                ctx.lineWidth = 3;
+
+                ctx.beginPath();
+                ctx.moveTo(0, canvas.height * 0.7);
+                ctx.bezierCurveTo(canvas.width * 0.3, canvas.height * 0.4, canvas.width * 0.6, canvas.height * 0.8, canvas.width, canvas.height * 0.3);
+                ctx.stroke();
+            }
+
+            resize();
+            window.addEventListener('resize', resize);
+        }
+
+        function bindManualDriveControls() {
+            const bind = (btn, prop) => {
+                btn.addEventListener('mousedown', () => state[prop] = true);
+                btn.addEventListener('mouseup', () => state[prop] = false);
+                btn.addEventListener('touchstart', (e) => { e.preventDefault(); state[prop] = true; });
+                btn.addEventListener('touchend', (e) => { e.preventDefault(); state[prop] = false; });
+            };
+            bind(document.getElementById('btn-accel'), 'isAccelerating');
+            bind(document.getElementById('btn-brake'), 'isBraking');
+        }
+
+        // --- CONTROLS & SETTINGS ---
+        function updateSpeedLimitThreshold(val) {
+            state.speedLimitThreshold = parseInt(val);
+            document.getElementById('speed-limit-val').innerText = `${val} KM/S`;
+            document.getElementById('speed-limit-badge').innerText = `HƏD: ${val} KM/S`;
+            document.getElementById('speed-limit-setting-text').innerText = `Xəbərdarlıq Limit: ${val} km/s`;
+        }
+
+        function adjustTemp(person, delta) {
+            if (person === 'driver') {
+                state.driverTemp = Math.max(16, Math.min(30, state.driverTemp + delta));
+                document.getElementById('temp-driver').innerText = `${state.driverTemp.toFixed(1)}°`;
+                document.getElementById('dock-driver-temp').innerText = `${state.driverTemp.toFixed(1)}°`;
+            } else {
+                state.passengerTemp = Math.max(16, Math.min(30, state.passengerTemp + delta));
+                document.getElementById('temp-passenger').innerText = `${state.passengerTemp.toFixed(1)}°`;
+                document.getElementById('dock-passenger-temp').innerText = `${state.passengerTemp.toFixed(1)}°`;
+            }
+        }
+
+        function toggleVehicleLock() {
+            state.isLocked = !state.isLocked;
+            document.getElementById('lock-icon-locked').classList.toggle('hidden', !state.isLocked);
+            document.getElementById('lock-icon-unlocked').classList.toggle('hidden', state.isLocked);
+        }
+
+        function setLightMode(mode) {
+            ['off', 'auto', 'on', 'high'].forEach(m => {
+                const el = document.getElementById(`light-${m}`);
+                if (el) el.className = m === mode ? 'py-2 text-xs font-semibold rounded-lg bg-tesla-card text-white shadow' : 'py-2 text-xs font-semibold rounded-lg text-gray-400';
+            });
+            state.headlightMode = mode;
+        }
+
+        function setRideMode(mode) {
+            ['eco', 'standard', 'sport'].forEach(m => {
+                document.getElementById(`ride-${m}`).className = m === mode ? 'flex-1 py-2 text-xs font-semibold rounded-lg bg-tesla-card text-white shadow' : 'flex-1 py-2 text-xs font-semibold rounded-lg text-gray-400';
+            });
+            state.rideMode = mode;
+        }
+
+        function toggleBrakeHold() {
+            state.brakeHold = !state.brakeHold;
+            document.getElementById('brake-hold-text').innerText = state.brakeHold ? 'AKTİVDİR' : 'DEAKTİVDİR';
+            document.getElementById('btn-toggle-brakehold').innerText = state.brakeHold ? 'DEAKTİV ET' : 'AKTİV ET';
+        }
+
+        function toggleSpecialMode(modeKey) {
+            const btn = document.getElementById(`btn-mode-${modeKey}`);
+            btn.classList.toggle('bg-tesla-accent');
+            btn.classList.toggle('text-white');
+        }
+
+        function updateChargeLimit(val) {
+            document.getElementById('charge-limit-val').innerText = `${val}%`;
+            document.getElementById('estimated-range-text').innerText = `Təxmini Məsafə: ${Math.round(val * 0.42)} km`;
+        }
+
+        function toggleChargingState() {
+            state.isCharging = !state.isCharging;
+            document.getElementById('charging-bolt').classList.toggle('hidden', !state.isCharging);
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.app-view').forEach(v => v.classList.add('hidden'));
+            document.querySelectorAll('.dock-tab').forEach(t => t.className = 'dock-tab text-gray-400 hover:text-white transition p-2 sm:p-2.5 rounded-xl');
+
+            document.getElementById(`view-${tab}`).classList.remove('hidden');
+            document.getElementById(`tab-${tab}`).className = 'dock-tab text-tesla-accent bg-tesla-card border border-tesla-border p-2 sm:p-2.5 rounded-xl';
+        }
+    </script>
+</body>
+</html>
